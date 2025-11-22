@@ -1,23 +1,24 @@
 import telebot
-from transformers import pipeline
+import os
+from openai import OpenAI
 
-# ---- Твой новый Telegram-токен ----
-TOKEN = "ВСТАВЬ_НОВЫЙ_ТОКЕН_ОТ_BOTFATHER"
+# === Токен Telegram ===
+TOKEN = os.getenv("TOKEN")  # Подставится с Render
 bot = telebot.TeleBot(TOKEN)
 
-# ---- Бесплатная ИИ-модель ----
-chatbot = pipeline("text-generation", model="TheBloke/vicuna-7B-1.1-HF")
+# === OpenAI Client (бесплатная модель: gpt-4o-mini) ===
+client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
-# ---- Команда /start ----
+# === Команда /start ===
 @bot.message_handler(commands=['start'])
 def start(message):
     bot.send_message(
         message.chat.id,
-        f"Привет, {message.from_user.first_name}! ✨\n"
+        f"Привет, {message.from_user.first_name}! 👋\n"
         f"Я умный бот. Напиши /help чтобы узнать, что я умею."
     )
 
-# ---- Команда /help ----
+# === Команда /help ===
 @bot.message_handler(commands=['help'])
 def help_command(message):
     bot.send_message(message.chat.id,
@@ -28,18 +29,25 @@ def help_command(message):
         "/raffle run — провести розыгрыш\n"
     )
 
-# ---- ИИ /ask ----
+# === ИИ /ask ===
 @bot.message_handler(commands=['ask'])
 def ask_ai(message):
     question = message.text.replace("/ask", "").strip()
     if not question:
         bot.send_message(message.chat.id, "Напиши вопрос после команды /ask")
         return
-    bot.send_message(message.chat.id, "Думаю... 🤔")
-    answer = chatbot(question, max_length=200)[0]["generated_text"]
+
+    bot.send_message(message.chat.id, "Думаю... 🧠")
+
+    response = client.chat.completions.create(
+        model="gpt-4o-mini",
+        messages=[{"role": "user", "content": question}]
+    )
+
+    answer = response.choices[0].message.content
     bot.send_message(message.chat.id, answer)
 
-# ---- Калькулятор /calc ----
+# === Калькулятор ===
 @bot.message_handler(commands=['calc'])
 def calc(message):
     expr = message.text.replace("/calc", "").strip()
@@ -47,9 +55,9 @@ def calc(message):
         result = eval(expr)
         bot.send_message(message.chat.id, f"Результат: {result}")
     except:
-        bot.send_message(message.chat.id, "Ошибка. Пиши пример вида: 2+2*3")
+        bot.send_message(message.chat.id, "Ошибка. Пиши пример: 2+2*3")
 
-# ---- Розыгрыш ----
+# === Розыгрыш ===
 raffle_list = []
 
 @bot.message_handler(commands=['raffle'])
@@ -66,7 +74,7 @@ def raffle(message):
     if action == "add":
         name = " ".join(args[2:])
         raffle_list.append(name)
-        bot.send_message(message.chat.id, f"Участник добавлен: {name}")
+        bot.send_message(message.chat.id, f"Добавлен: {name}")
 
     elif action == "run":
         if not raffle_list:
@@ -74,13 +82,13 @@ def raffle(message):
             return
         import random
         winner = random.choice(raffle_list)
-        bot.send_message(message.chat.id, f"🎉 ПОБЕДИТЕЛЬ: {winner} 🎉")
+        bot.send_message(message.chat.id, f"🎉 Победитель: {winner} 🎉")
         raffle_list = []
 
-# ---- Фолбэк: ответ на сообщения ----
+# === Ответ на любые сообщения ===
 @bot.message_handler(func=lambda message: True)
-def echo_all(message):
+def echo(message):
     bot.send_message(message.chat.id, f"Ты написал: {message.text}")
 
-# ---- Запуск ----
+# === Запуск ===
 bot.polling()
